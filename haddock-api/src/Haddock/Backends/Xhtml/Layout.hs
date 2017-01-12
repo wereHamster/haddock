@@ -124,7 +124,7 @@ divSubDecls cssClass captionName = maybe noHtml wrap
   where
     wrap = (subSection <<) . (subCaption +++)
     subSection = thediv ! [theclass $ unwords ["subs", cssClass]]
-    subCaption = paragraph ! [theclass "caption"] << captionName
+    subCaption = h4 << captionName
 
 
 subDlist :: Qualification -> [SubDecl] -> Maybe Html
@@ -134,7 +134,7 @@ subDlist qual decls = Just $ ulist << map subEntry decls
     subEntry (decl, mdoc, subs) =
       li <<
         (define ! [theclass "src"] << decl +++
-         docElement thediv << (fmap (docToHtml Nothing qual) mdoc +++ subs))
+         docElement thediv << (fmap (docToHtml Nothing qual) mdoc) +++ subs)
 
 
 subTable :: Qualification -> [SubDecl] -> Maybe Html
@@ -155,8 +155,8 @@ subTableSrc qual lnks splice decls = Just $ table << aboves (concatMap subRow de
   where
     subRow ((decl, mdoc, subs),L loc dn) =
       (td ! [theclass "src clearfix"] <<
-        (thespan ! [theclass "inst-left"] << decl)
-        <+> linkHtml loc dn
+        (thespan ! [theclass "inst-body"] << decl)
+        <+> (thespan ! [theclass "inst-links"] << linkHtml loc dn)
       <->
       docElement td << fmap (docToHtml Nothing qual) mdoc
       )
@@ -178,7 +178,7 @@ subAssociatedTypes = divSubDecls "associated-types" "Associated Types" . subBloc
 
 
 subConstructors :: Qualification -> [SubDecl] -> Html
-subConstructors qual = divSubDecls "constructors" "Constructors" . subTable qual
+subConstructors qual = divSubDecls "constructors" "Constructors" . subDlist qual
 
 subFields :: Qualification -> [SubDecl] -> Html
 subFields qual = divSubDecls "fields" "Fields" . subDlist qual
@@ -198,7 +198,7 @@ subInstances qual nm lnks splice = maybe noHtml wrap . instTable
     wrap = (subSection <<) . (subCaption +++)
     instTable = fmap (thediv ! collapseSection id_ True [] <<) . subTableSrc qual lnks splice
     subSection = thediv ! [theclass "subs instances"]
-    subCaption = paragraph ! collapseControl id_ True "caption" << "Instances"
+    subCaption = h4 ! collapseControl id_ True "caption" << "Instances"
     id_ = makeAnchorId $ "i:" ++ nm
 
 
@@ -259,8 +259,10 @@ declElem = paragraph ! [theclass "src"]
 -- it adds a source and wiki link at the right hand side of the box
 topDeclElem :: LinksInfo -> SrcSpan -> Bool -> [DocName] -> Html -> Html
 topDeclElem lnks loc splice names html =
-    declElem << (html <+> (links lnks loc splice $ head names))
-        -- FIXME: is it ok to simply take the first name?
+    declElem << (
+      (thespan ! [theclass "decl-body"] << html) <+>
+      (thespan ! [theclass "decl-links"] << links lnks loc splice (head names)))
+      -- FIXME: is it ok to simply take the first name?
 
 -- | Adds a source and wiki link at the right hand side of the box.
 -- Name must be documented, otherwise we wouldn't get here.

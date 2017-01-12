@@ -213,23 +213,28 @@ groupId g = makeAnchorId ("g:" ++ g)
 -- | Attributes for an area that can be collapsed
 collapseSection :: String -> Bool -> String -> [HtmlAttr]
 collapseSection id_ state classes = [ identifier sid, theclass cs ]
-  where cs = unwords (words classes ++ [pick state "show" "hide"])
-        sid = "section." ++ id_
+  where
+    sid = "collapser-target." ++ id_
+    cs = unwords (
+      words classes
+      ++ ["collapser-target"]
+      ++ if state then [] else ["collapsed"])
+
 
 -- | Attributes for an area that toggles a collapsed area
 collapseToggle :: String -> [HtmlAttr]
 collapseToggle id_ = [ strAttr "onclick" js ]
-  where js = "toggleSection('" ++ id_ ++ "')";
+  where js = "haddock._toggleCollapsible('" ++ id_ ++ "')"
+
 
 -- | Attributes for an area that toggles a collapsed area,
 -- and displays a control.
 collapseControl :: String -> Bool -> String -> [HtmlAttr]
 collapseControl id_ state classes =
   [ identifier cid, theclass cs ] ++ collapseToggle id_
-  where cs = unwords (words classes ++ [pick state "collapser" "expander"])
-        cid = "control." ++ id_
-
-
-pick :: Bool -> a -> a -> a
-pick True  t _ = t
-pick False _ f = f
+  where
+    cid = "collapser." ++ id_
+    cs = unwords (
+      words classes
+      ++ ["collapser"]
+      ++ if state then [] else ["collapsed"])

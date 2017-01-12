@@ -41,15 +41,15 @@ parHtmlMarkup qual insertAnchors ppId = Markup {
   markupString               = toHtml,
   markupParagraph            = paragraph,
   markupAppend               = (+++),
-  markupIdentifier           = thecode . ppId insertAnchors,
-  markupIdentifierUnchecked  = thecode . ppUncheckedLink qual,
+  markupIdentifier           = \i -> thecode ! [theclass "inline id"] << ppId insertAnchors i,
+  markupIdentifierUnchecked  = \i -> thecode ! [theclass "inline id unchecked"] << ppUncheckedLink qual i,
   markupModule               = \m -> let (mdl,ref) = break (=='#') m
                                          -- Accomodate for old style
                                          -- foo\#bar anchors
                                          mdl' = case reverse mdl of
                                            '\\':_ -> init mdl
                                            _ -> mdl
-                                     in ppModuleRef (mkModuleName mdl') ref,
+                                    in ppModuleRef (mkModuleName mdl') ref,
   markupWarning              = thediv ! [theclass "warning"],
   markupEmphasis             = emphasize,
   markupBold                 = strong,
@@ -57,16 +57,16 @@ parHtmlMarkup qual insertAnchors ppId = Markup {
   markupUnorderedList        = unordList,
   markupOrderedList          = ordList,
   markupDefList              = defList,
-  markupCodeBlock            = pre,
+  markupCodeBlock            = (pre ! [theclass "block"]) . thecode,
   markupHyperlink            = \(Hyperlink url mLabel)
                                -> if insertAnchors
                                   then anchor ! [href url]
                                        << fromMaybe url mLabel
                                   else toHtml $ fromMaybe url mLabel,
   markupAName                = \aname
-                               -> if insertAnchors
-                                  then namedAnchor aname << ""
-                                  else noHtml,
+                                -> if insertAnchors
+                                   then namedAnchor aname << ""
+                                   else noHtml,
   markupPic                  = \(Picture uri t) -> image ! ([src uri] ++ fromMaybe [] (return . title <$> t)),
   markupMathInline           = \mathjax -> toHtml ("\\(" ++ mathjax ++ "\\)"),
   markupMathDisplay          = \mathjax -> toHtml ("\\[" ++ mathjax ++ "\\]"),
@@ -85,7 +85,7 @@ parHtmlMarkup qual insertAnchors ppId = Markup {
     makeHeader l _ = error $ "Somehow got a header level `" ++ show l ++ "' in DocMarkup!"
 
 
-    examplesToHtml l = pre (concatHtml $ map exampleToHtml l) ! [theclass "screen"]
+    examplesToHtml l = pre (concatHtml $ map exampleToHtml l) ! [theclass "block screen"]
 
     exampleToHtml (Example expression result) = htmlExample
       where

@@ -65,12 +65,12 @@ processModuleHeader dflags gre safety mayStr = do
             doc' = overDoc (rename dflags gre) doc
         return (hmi', Just doc')
 
-  let flags :: [LangExt.Extension]
+  let -- flags :: [LangExt.Extension]
       -- We remove the flags implied by the language setting and we display the language instead
       flags = map toEnum (toList $ extensionFlags dflags) \\ languageExtensions (language dflags)
   return (hmi { hmi_safety = Just $ showPpr dflags safety
               , hmi_language = language dflags
-              , hmi_extensions = flags
+              , hmi_extensions = [] -- flags
               } , doc)
   where
     failure = (emptyHaddockModInfo, Nothing)

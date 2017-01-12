@@ -32,18 +32,21 @@ import Haddock.Types
 import Haddock.Version
 import Haddock.Utils
 import Text.XHtml hiding ( name, title, p, quote )
+import qualified Text.XHtml as H
 import Haddock.GhcUtils
 
 import Control.Monad         ( when, unless )
-import Data.Char             ( toUpper, isSpace )
-import Data.List             ( sortBy, intercalate, isPrefixOf, intersperse )
+import Data.Char             ( toUpper, isSpace, isLetter, isAscii )
+import Data.List             ( sortBy, groupBy, nubBy, intercalate, isPrefixOf, intersperse )
 import Data.Maybe
 import System.FilePath hiding ( (</>) )
 import System.Directory
 import Data.Map              ( Map )
 import qualified Data.Map as Map hiding ( Map )
+import Data.Set (Set)
 import qualified Data.Set as Set hiding ( Set )
 import Data.Ord              ( comparing )
+import Data.Function
 
 import DynFlags (Language(..))
 import GHC hiding ( NoLink, moduleInfo )
@@ -92,7 +95,7 @@ ppHtml dflags doctitle maybe_package ifaces odir prologue
       themes maybe_mathjax_url maybe_contents_url maybe_source_url maybe_wiki_url
       (map toInstalledIface visible_ifaces) debug
 
-  mapM_ (ppHtmlModule odir doctitle themes
+  mapM_ (ppHtmlModule odir doctitle themes maybe_package (map toInstalledIface visible_ifaces)
            maybe_mathjax_url maybe_source_url maybe_wiki_url
            maybe_contents_url maybe_index_url unicode qual debug) visible_ifaces
 
@@ -104,7 +107,13 @@ copyHtmlBits odir libdir themes = do
     copyCssFile f = copyFile f (combine odir (takeFileName f))
     copyLibFile f = copyFile (joinPath [libhtmldir, f]) (joinPath [odir, f])
   mapM_ copyCssFile (cssFiles themes)
-  copyLibFile jsFile
+  mapM_ copyLibFile [
+      "js.cookie.js",
+      "mousetrap.min.js",
+      "jquery.min.js",
+      "jquery.nanoscroller.min.js",
+      "haddock.js"
+      ]
   return ()
 
 
@@ -112,21 +121,23 @@ headHtml :: String -> Maybe String -> Themes -> Maybe String -> Html
 headHtml docTitle miniPage themes mathjax_url =
   header << [
     meta ! [httpequiv "Content-Type", content "text/html; charset=UTF-8"],
+    meta ! [H.name "viewport", content "width=device-width, initial-scale=1.0"],
     thetitle << docTitle,
     styleSheet themes,
-    script ! [src jsFile, thetype "text/javascript"] << noHtml,
-    script ! [src mjUrl, thetype "text/javascript"] << noHtml,
-    script ! [thetype "text/javascript"]
-        -- NB: Within XHTML, the content of script tags needs to be
-        -- a <![CDATA[ section. Will break if the miniPage name could
-        -- have "]]>" in it!
-      << primHtml (
-          "//<![CDATA[\nwindow.onload = function () {pageLoad();"
-          ++ setSynopsis ++ "};\n//]]>\n")
+    jsFile mjUrl,
+    jsFile "js.cookie.js",
+    jsFile "mousetrap.min.js",
+    jsFile "jquery.min.js",
+    jsFile "jquery.nanoscroller.min.js",
+    jsFile "haddock.js",
+    jsCode "window.onload = function() { haddock._initPage(); }"
     ]
   where
     setSynopsis = maybe "" (\p -> "setSynopsis(\"" ++ p ++ "\");") miniPage
     mjUrl = maybe "https://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML" id mathjax_url
+    jsFile src = script ! [H.src src, thetype "text/javascript"] << H.noHtml
+    jsCode code = script ! [thetype "text/javascript"] <<
+                    primHtml ("//<![CDATA[\n" ++ code ++ "\n//]]>\n")
 
 
 srcButton :: SourceURLs -> Maybe Interface -> Maybe Html
@@ -164,31 +175,79 @@ indexButton maybe_index_url
   where url = fromMaybe indexHtmlFile maybe_index_url
 
 
+
+newtype BodyClasses = BodyClasses [String]
+newtype ContentsTab = ContentsTab Html
+
 bodyHtml :: String -> Maybe Interface
+    -> Maybe String -> [InstalledInterface]
     -> SourceURLs -> WikiURLs
     -> Maybe String -> Maybe String
+    -> BodyClasses -> Maybe ContentsTab
     -> Html -> Html
 bodyHtml doctitle iface
+           maybePackage instIfaces
            maybe_source_url maybe_wiki_url
            maybe_contents_url maybe_index_url
+           (BodyClasses bodyClassList) maybeContentsTab
            pageContent =
-  body << [
-    divPackageHeader << [
-      unordList (catMaybes [
-        srcButton maybe_source_url iface,
-        wikiButton maybe_wiki_url (ifaceMod <$> iface),
-        contentsButton maybe_contents_url,
-        indexButton maybe_index_url])
-            ! [theclass "links", identifier "page-menu"],
-      nonEmptySectionName << doctitle
+  body ! [theclass (unwords bodyClassList)] << [
+    H.thediv ! [H.identifier "page"] << [
+      H.thediv ! [H.identifier "page-header"] << [
+        H.h1 << "Haskell",
+        pageMenu
       ],
-    divContent << pageContent,
-    divFooter << paragraph << (
-      "Produced by " +++
-      (anchor ! [href projectUrl] << toHtml projectName) +++
-      (" version " ++ projectVersion)
+      H.thediv ! [H.identifier "content"] << pageContent,
+      H.thediv ! [H.identifier "sidebar"] << [
+        H.thediv ! [H.identifier "sidebar-header"] << [
+          H.thediv ! [H.identifier "sidebar-logo"] << [
+            H.anchor ! [H.identifier "sidebar-logo-link",
+                        H.href "https://haskell.org"] << H.noHtml
+          ],
+          H.thediv ! [H.identifier "sidebar-title"] << [
+            H.thespan ! [H.identifier "sidebar-title-text"] << sidebarTitle
+          ]
+        ],
+        H.thediv ! [H.identifier "sidebar-tabs"] << [
+          sidebarTab "sidebar-pages-tab" << genPagesTab instIfaces,
+          maybeContentsTabHtml
+        ]
+      ],
+      H.thediv ! [H.identifier "footer"] << H.paragraph << (
+        "Produced by " +++
+        (anchor ! [href projectUrl] << toHtml projectName) +++
+        (" version " ++ projectVersion)
       )
     ]
+  ]
+  where
+    pageMenu = H.ulist ! [H.identifier "page-menu"] << pageMenuButtons
+
+    pageMenuButtons =
+      catMaybes [
+        pageSourceButton maybe_source_url iface,
+        pageWikiButton maybe_wiki_url (fmap ifaceMod iface)
+      ] ++ [
+        docContentsButton maybe_contents_url,
+        docIndexButton maybe_index_url
+      ]
+
+    sidebarTitle =
+      case maybePackage of
+        Just package -> package
+        Nothing      -> doctitle
+
+    maybeContentsTabHtml =
+      case maybeContentsTab of
+        Just (ContentsTab html) -> sidebarTab "sidebar-contents-tab" << html
+        Nothing                 -> H.noHtml
+
+    sidebarTab elementId html =
+      H.thediv ! [H.identifier elementId,
+                  H.theclass "sidebar-tab"] <<
+        H.thediv ! [H.identifier (elementId ++ "-content"),
+                    H.theclass "mini sidebar-tab-content"] <<
+          html
 
 
 moduleInfo :: Interface -> Html
@@ -202,13 +261,13 @@ moduleInfo iface =
 
       entries :: [HtmlTable]
       entries = maybeToList copyrightsTable ++ mapMaybe doOneEntry [
-          ("License",hmi_license),
-          ("Maintainer",hmi_maintainer),
-          ("Stability",hmi_stability),
-          ("Portability",hmi_portability),
-          ("Safe Haskell",hmi_safety),
-          ("Language", lg)
-          ] ++ extsForm
+        ("License",hmi_license),
+        ("Maintainer",hmi_maintainer),
+        ("Stability",hmi_stability),
+        ("Portability",hmi_portability),
+        ("Safe Haskell",hmi_safety),
+        ("Language", lg)
+        ] ++ extsForm
         where
           lg inf = case hmi_language inf of
             Nothing -> Nothing
@@ -234,11 +293,70 @@ moduleInfo iface =
             where
               extField x = return $ th << "Extensions" <-> td << x
               dropOpt x = if "Opt_" `isPrefixOf` x then drop 4 x else x
-   in
+  in
       case entries of
-         [] -> noHtml
-         _ -> table ! [theclass "info"] << aboves entries
+        [] -> noHtml
+        _ -> thediv ! [identifier "module-info"] << [
+          h3 << "Information",
+          table ! [H.theclass "info"] << aboves entries
+          ]
 
+
+--------------------------------------------------------------------------------
+-- * Standard page URLs
+--------------------------------------------------------------------------------
+
+getPageSourceUrl :: SourceURLs -> Maybe Interface -> Maybe String
+getPageSourceUrl (Just baseUrl, _, _, _) Nothing = Just baseUrl
+getPageSourceUrl (_, Just moduleUrl, _, _) (Just iface) =
+  Just (spliceURL (Just (ifaceOrigFilename iface))
+                  (Just (ifaceMod iface))
+                  Nothing Nothing moduleUrl)
+getPageSourceUrl _ _ = Nothing
+
+getPageWikiUrl :: WikiURLs -> Maybe Module -> Maybe String
+getPageWikiUrl (Just baseUrl, _, _) Nothing = Just baseUrl
+getPageWikiUrl (_, Just moduleUrl, _) (Just mdl) =
+    Just (spliceURL Nothing (Just mdl) Nothing Nothing moduleUrl)
+getPageWikiUrl _ _ = Nothing
+
+--------------------------------------------------------------------------------
+-- * Page menu buttons
+--------------------------------------------------------------------------------
+
+data ExistsInSidebar = NotInSidebar | ExistsInSidebar
+
+makePageMenuButton :: String -> ExistsInSidebar -> String -> Html
+makePageMenuButton label existsInSidebar url =
+  H.li ! liAttrs << (H.anchor ! [H.href url] << label)
+  where
+    liAttrs = case existsInSidebar of
+      ExistsInSidebar -> [H.theclass "exists-in-sidebar"]
+      NotInSidebar    -> []
+
+pageSourceButton :: SourceURLs -> Maybe Interface -> Maybe Html
+pageSourceButton sourceUrls maybeIface =
+  case getPageSourceUrl sourceUrls maybeIface of
+    Just url -> Just (makePageMenuButton "Source" NotInSidebar url)
+    Nothing  -> Nothing
+
+pageWikiButton :: WikiURLs -> Maybe Module -> Maybe Html
+pageWikiButton sourceUrls maybeMdl =
+  case getPageWikiUrl sourceUrls maybeMdl of
+    Just url -> Just (makePageMenuButton "Wiki" NotInSidebar url)
+    Nothing  -> Nothing
+
+docContentsButton :: Maybe String -> Html
+docContentsButton maybeContentsUrl =
+  makePageMenuButton "Contents" ExistsInSidebar url
+  where
+    url = fromMaybe contentsHtmlFile maybeContentsUrl
+
+docIndexButton :: Maybe String -> Html
+docIndexButton maybeIndexUrl =
+  makePageMenuButton "Index" ExistsInSidebar url
+  where
+    url = fromMaybe indexHtmlFile maybeIndexUrl
 
 --------------------------------------------------------------------------------
 -- * Generate the module contents
@@ -263,15 +381,16 @@ ppHtmlContents dflags odir doctitle _maybe_package
   themes mathjax_url maybe_index_url
   maybe_source_url maybe_wiki_url ifaces showPkgs prologue debug qual = do
   let tree = mkModuleTree dflags showPkgs
-         [(instMod iface, toInstalledDescription iface) | iface <- ifaces]
+              [(instMod iface, toInstalledDescription iface) | iface <- ifaces]
       html =
         headHtml doctitle Nothing themes mathjax_url +++
         bodyHtml doctitle Nothing
-          maybe_source_url maybe_wiki_url
-          Nothing maybe_index_url << [
-            ppPrologue qual doctitle prologue,
-            ppModuleTree qual tree
-          ]
+               _maybe_package ifaces
+               maybe_source_url maybe_wiki_url
+               Nothing maybe_index_url (BodyClasses []) Nothing << [
+                 ppPrologue qual doctitle prologue,
+                 ppModuleTree qual tree
+               ]
   createDirectoryIfMissing True odir
   writeFile (joinPath [odir, contentsHtmlFile]) (renderToString debug html)
 
@@ -279,12 +398,12 @@ ppHtmlContents dflags odir doctitle _maybe_package
 ppPrologue :: Qualification -> String -> Maybe (MDoc GHC.RdrName) -> Html
 ppPrologue _ _ Nothing = noHtml
 ppPrologue qual title (Just doc) =
-  divDescription << (h1 << title +++ docElement thediv (rdrDocToHtml qual doc))
+  thediv ! [identifier "contents-prologue"] << (h1 << title +++ docElement thediv (rdrDocToHtml qual doc))
 
 
 ppModuleTree :: Qualification -> [ModuleTree] -> Html
 ppModuleTree qual ts =
-  divModuleList << (sectionName << "Modules" +++ mkNodeList qual [] "n" ts)
+  thediv ! [identifier "module-list"] << (h1 << "Modules" +++ mkNodeList qual [] "n" ts)
 
 
 mkNodeList :: Qualification -> [String] -> String -> [ModuleTree] -> Html
@@ -304,7 +423,7 @@ mkNode qual ss p (Node s leaf pkg srcPkg short ts) =
       (_,   _    ) -> [theclass "module"]
 
     cBtn = case (ts, leaf) of
-      (_:_, True) -> thespan ! collapseControl p True "" << spaceHtml
+      (_:_, True) -> thespan ! collapseControl p True "" << H.noHtml
       (_,   _   ) -> noHtml
       -- We only need an explicit collapser button when the module name
       -- is also a leaf, and so is a link to a module page. Indeed, the
@@ -319,16 +438,97 @@ mkNode qual ss p (Node s leaf pkg srcPkg short ts) =
 
     mdl = intercalate "." (reverse (s:ss))
 
-    shortDescr = maybe noHtml (origDocToHtml qual) short
-    htmlPkg = maybe noHtml (thespan ! [theclass "package"] <<) srcPkg
+    shortDescr =
+      case short of
+        Just s -> H.thespan ! [H.theclass "short-descr"] << origDocToHtml qual s
+        Nothing -> H.noHtml
+
+    htmlPkg =
+      case srcPkg of
+        Just pkg -> H.thespan ! [H.theclass "package"] << pkg
+        Nothing  -> H.noHtml
 
     subtree = mkNodeList qual (s:ss) p ts ! collapseSection p True ""
 
 
 
+genPagesTab :: [InstalledInterface] -> Html
+genPagesTab ifaces =
+  H.toHtml [
+    H.unordList [
+      standardPageLink "Contents" "index.html",
+      standardPageLink "Index" "doc-index.html"
+    ],
+    H.thediv ! [H.theclass "module-list"] << [
+      H.h1 ! [H.theclass "mini-item"] << "Modules",
+      H.ulist << map moduleLink (genTabModuleList ifaces)
+    ]
+  ]
+  where
+    moduleLink m = H.li ! [H.theclass "module"] << m
+    standardPageLink label url =
+      H.anchor ! [H.href url, H.theclass "mini-item", H.target "_parent"] <<
+        label
+
+--------------------------------------------------------------------------------
+
+genTabModuleList :: [InstalledInterface] -> [Html]
+genTabModuleList ifaces =
+  map (\(name, mdl) -> makeLink name mdl)
+    $ nubBy ((==) `on` fst)
+    $ sortBy (comparing fst)
+    $ mods
+  where
+    mods = [(moduleString mdl, mdl) | mdl <- map instMod ifaces]
+    makeLink name mdl =
+      H.anchor ! [H.href (moduleHtmlFile mdl), H.theclass "mini-item",
+                  H.target "_parent"] <<
+        name
+
 --------------------------------------------------------------------------------
 -- * Generate the index
 --------------------------------------------------------------------------------
+
+type Index = Map String (Set IndexEntry)
+
+data IndexEntry = IndexEntry !GHC.Name !GHC.Module !IndexType !Bool
+  deriving (Eq, Ord)
+
+data IndexType = TypeOrClassIT | ConstructorIT | FunctionIT
+  deriving (Eq, Ord)
+
+--------------------------------------------------------------------------------
+
+buildIndex :: [InstalledInterface] -> Index
+buildIndex ifaces =
+  Map.unionsWith Set.union (map getIfaceIndex ifaces)
+  where
+    getIfaceIndex :: InstalledInterface -> Index
+    getIfaceIndex iface =
+      makeIndex (instExports iface)
+      where
+        makeIndex [] = Map.empty
+        makeIndex (name:xs) =
+          insertIndexEntry (occNameString (nameOccName name))
+                           (makeEntry name) (makeIndex xs)
+        makeEntry name =
+          IndexEntry name mdl (getEntryType name) (Set.member name visible)
+        visible = Set.fromList (instVisibleExports iface)
+        mdl = instMod iface
+
+    insertIndexEntry :: String -> IndexEntry -> Index -> Index
+    insertIndexEntry name entry index =
+      Map.insert name (Set.insert entry existingEntries) index
+      where
+        existingEntries = case Map.lookup name index of
+          Just entries -> entries
+          Nothing      -> Set.empty
+
+    getEntryType name
+      | not (isValOcc on) = TypeOrClassIT
+      | isDataOcc on      = ConstructorIT
+      | otherwise         = FunctionIT
+      where on = nameOccName name
 
 
 ppHtmlIndex :: FilePath
@@ -344,113 +544,139 @@ ppHtmlIndex :: FilePath
             -> IO ()
 ppHtmlIndex odir doctitle _maybe_package themes
   maybe_mathjax_url maybe_contents_url maybe_source_url maybe_wiki_url ifaces debug = do
-  let html = indexPage split_indices Nothing
-              (if split_indices then [] else index)
-
   createDirectoryIfMissing True odir
-
-  when split_indices $ do
-    mapM_ (do_sub_index index) initialChars
-    -- Let's add a single large index as well for those who don't know exactly what they're looking for:
-    let mergedhtml = indexPage False Nothing index
-    writeFile (joinPath [odir, subIndexHtmlFile merged_name]) (renderToString debug mergedhtml)
-
   writeFile (joinPath [odir, indexHtmlFile]) (renderToString debug html)
-
+  when doLetterPages $ do
+    let allHtml = makeIndexPage True Nothing allIndex
+    mapM_ writeLetterIndex alphabetChars
+    writeFile (joinPath [odir, subIndexHtmlFile allName])
+              (renderToString debug allHtml)
+    when (not (null otherIndex)) $ do
+      let otherHtml = makeIndexPage True Nothing otherIndex
+      writeFile (joinPath [odir, subIndexHtmlFile otherName])
+                (renderToString debug otherHtml)
   where
-    indexPage showLetters ch items =
-      headHtml (doctitle ++ " (" ++ indexName ch ++ ")") Nothing themes maybe_mathjax_url +++
-      bodyHtml doctitle Nothing
-        maybe_source_url maybe_wiki_url
-        maybe_contents_url Nothing << [
-          if showLetters then indexInitialLetterLinks else noHtml,
-          if null items then noHtml else
-            divIndex << [sectionName << indexName ch, buildIndex items]
-          ]
+    html = makeIndexPage doLetterPages Nothing
+                                 (if doLetterPages then [] else allIndex)
 
     indexName ch = "Index" ++ maybe "" (\c -> " - " ++ [c]) ch
-    merged_name = "All"
 
-    buildIndex items = table << aboves (map indexElt items)
+    makeIndexPage showAlphabet ch items =
+      headHtml (doctitle ++ " (" ++ indexName ch ++ ")") Nothing themes maybe_mathjax_url +++
+      bodyHtml doctitle Nothing
+               _maybe_package ifaces
+               maybe_source_url maybe_wiki_url
+               maybe_contents_url Nothing
+               (BodyClasses []) Nothing << [
+        if showAlphabet then alphabetHtml else H.noHtml,
+        H.thediv ! [H.identifier "index"] <<
+          if null items
+            then [H.p ! [H.theclass "no-items"] << "Select a letter."]
+            else [H.h1 << indexName ch, genIndexTable items]
+      ]
 
-    -- an arbitrary heuristic:
-    -- too large, and a single-page will be slow to load
-    -- too small, and we'll have lots of letter-indexes with only one
-    --   or two members in them, which seems inefficient or
-    --   unnecessarily hard to use.
-    split_indices = length index > 150
+    -- Basic indices
+    ----------------
 
-    indexInitialLetterLinks =
-      divAlphabet <<
-         unordList (map (\str -> anchor ! [href (subIndexHtmlFile str)] << str) $
-                        [ [c] | c <- initialChars
-                              , any ((==c) . toUpper . head . fst) index ] ++
-                        [merged_name])
-
-    -- todo: what about names/operators that start with Unicode
-    -- characters?
-    -- Exports beginning with '_' can be listed near the end,
-    -- presumably they're not as important... but would be listed
-    -- with non-split index!
-    initialChars = [ 'A'..'Z' ] ++ ":!#$%&*+./<=>?@\\^|-~" ++ "_"
-
-    do_sub_index this_ix c
-      = unless (null index_part) $
-          writeFile (joinPath [odir, subIndexHtmlFile [c]]) (renderToString debug html)
+    allIndex =
+      sortBy cmp (Map.toList (buildIndex ifaces))
       where
-        html = indexPage True (Just c) index_part
-        index_part = [(n,stuff) | (n,stuff) <- this_ix, toUpper (head n) == c]
+        cmp (n1,_) (n2,_) = comparing (map toUpper) n1 n2
 
-
-    index :: [(String, Map GHC.Name [(Module,Bool)])]
-    index = sortBy cmp (Map.toAscList full_index)
-      where cmp (n1,_) (n2,_) = comparing (map toUpper) n1 n2
-
-    -- for each name (a plain string), we have a number of original HsNames that
-    -- it can refer to, and for each of those we have a list of modules
-    -- that export that entity.  Each of the modules exports the entity
-    -- in a visible or invisible way (hence the Bool).
-    full_index :: Map String (Map GHC.Name [(Module,Bool)])
-    full_index = Map.fromListWith (flip (Map.unionWith (++)))
-                 (concatMap getIfaceIndex ifaces)
-
-    getIfaceIndex iface =
-      [ (getOccString name
-         , Map.fromList [(name, [(mdl, name `Set.member` visible)])])
-         | name <- instExports iface ]
+    otherIndex =
+      filter func allIndex
       where
-        mdl = instMod iface
-        visible = Set.fromList (instVisibleExports iface)
+        func (name,_) = Set.notMember (toUpper (head name)) alphabetCharSet
 
-    indexElt :: (String, Map GHC.Name [(Module,Bool)]) -> HtmlTable
-    indexElt (str, entities) =
-       case Map.toAscList entities of
-          [(nm,entries)] ->
-              td ! [ theclass "src" ] << toHtml str <->
-                          indexLinks nm entries
-          many_entities ->
-              td ! [ theclass "src" ] << toHtml str <-> td << spaceHtml </>
-                  aboves (zipWith (curry doAnnotatedEntity) [1..] many_entities)
+    doLetterPages = length allIndex > 150
 
-    doAnnotatedEntity :: (Integer, (Name, [(Module, Bool)])) -> HtmlTable
-    doAnnotatedEntity (j,(nm,entries))
-          = td ! [ theclass "alt" ] <<
-                  toHtml (show j) <+> parens (ppAnnot (nameOccName nm)) <->
-                   indexLinks nm entries
+    writeLetterIndex ch =
+      unless (null items) $
+        writeFile (joinPath [odir, subIndexHtmlFile [ch]])
+                  (renderToString debug html)
+      where
+        html = makeIndexPage True (Just ch) items
+        items = filter filterFunc allIndex
+        filterFunc (name,_) = toUpper (head name) == ch
 
-    ppAnnot n | not (isValOcc n) = toHtml "Type/Class"
-              | isDataOcc n      = toHtml "Data Constructor"
-              | otherwise        = toHtml "Function"
+    -- Alphabet
+    -----------
 
-    indexLinks nm entries =
-       td ! [ theclass "module" ] <<
-          hsep (punctuate comma
-          [ if visible then
-               linkId mdl (Just nm) << toHtml (moduleString mdl)
-            else
-               toHtml (moduleString mdl)
-          | (mdl, visible) <- entries ])
+    alphabetHtml =
+      H.thediv ! [H.identifier "alphabet"] <<
+        H.unordList (map makeLink linkNames)
+      where
+        makeLink name =
+          H.anchor ! ([H.href (subIndexHtmlFile name)] ++ nonAsciiClass) << name
+          where
+            nonAsciiClass =
+              if all isAscii name then [] else [H.theclass "non-ascii"]
+        linkNames =
+          map (\c -> [c]) alphabetChars ++
+          if haveOtherChars then [otherName] else [] ++
+          [allName]
 
+    allName   = "All"
+    otherName = "Other"
+
+    basicSpecials = ":!#$%&*+./<=>?@\\^|-~_"
+
+    initialCharSet =
+      Set.fromList (map (\(name,_) -> toUpper (head name)) allIndex)
+
+    initialLetterSet = Set.filter isLetter initialCharSet
+
+    alphabetChars =
+      Set.toAscList initialLetterSet ++
+      filter (\ch -> Set.member ch initialCharSet) basicSpecials
+
+    alphabetCharSet = Set.fromList alphabetChars
+
+    haveOtherChars = not (initialLetterSet == alphabetCharSet)
+
+    -- Index table
+    --------------
+
+    genIndexTable items = H.table << H.aboves (concatMap genIndexEntry items)
+
+    genIndexEntry (name, entrySet) =
+      if allSame (map getEntryType entryList)
+        then [H.besides [nameTd, genLinksTd entryList]]
+        else
+          [H.besides [nameTd, H.td << H.noHtml]] ++
+          genCategorizedEntries entryList
+      where
+        entryList = Set.toAscList entrySet
+        nameTd = H.td ! [H.theclass "src"] << name
+
+    genCategorizedEntries entryList =
+      catMaybes [
+        makeRow "Type/Class"  (filterByType TypeOrClassIT),
+        makeRow "Constructor" (filterByType ConstructorIT),
+        makeRow "Function"    (filterByType FunctionIT)
+      ]
+      where
+        filterByType t = filter (\e -> getEntryType e == t) entryList
+        makeRow _ [] = Nothing
+        makeRow rowName rowEntries =
+          Just (H.besides [
+            H.td ! [H.theclass "cat"] << rowName,
+            genLinksTd rowEntries
+          ])
+
+    genLinksTd entryList =
+      H.td ! [H.theclass "modules"] << links
+      where
+        links = hsep (punctuate comma (map makeLink entryList))
+        makeLink (IndexEntry name mdl _ visible) =
+          if visible
+            then linkId mdl (Just name) << moduleString mdl
+            else H.toHtml (moduleString mdl)
+
+    -- Utilities
+    ------------
+
+    getEntryType (IndexEntry _ _ t _) = t
 
 --------------------------------------------------------------------------------
 -- * Generate the HTML page for a module
@@ -459,10 +685,12 @@ ppHtmlIndex odir doctitle _maybe_package themes
 
 ppHtmlModule
         :: FilePath -> String -> Themes
+        -> Maybe String -> [InstalledInterface]
         -> Maybe String -> SourceURLs -> WikiURLs
         -> Maybe String -> Maybe String -> Bool -> QualOption
         -> Bool -> Interface -> IO ()
 ppHtmlModule odir doctitle themes
+  maybePackage instIfaces
   maybe_mathjax_url maybe_source_url maybe_wiki_url
   maybe_contents_url maybe_index_url unicode qual debug iface = do
   let
@@ -470,18 +698,25 @@ ppHtmlModule odir doctitle themes
       aliases = ifaceModuleAliases iface
       mdl_str = moduleString mdl
       real_qual = makeModuleQual qual aliases mdl
+      exports = numberSectionHeadings (ifaceRnExportItems iface)
+      ctsTab = genModuleContentsTab mdl iface unicode real_qual
       html =
         headHtml mdl_str (Just $ "mini_" ++ moduleHtmlFile mdl) themes maybe_mathjax_url +++
         bodyHtml doctitle (Just iface)
-          maybe_source_url maybe_wiki_url
-          maybe_contents_url maybe_index_url << [
-            divModuleHeader << (moduleInfo iface +++ (sectionName << mdl_str)),
-            ifaceToHtml maybe_source_url maybe_wiki_url iface unicode real_qual
-          ]
+               maybePackage instIfaces
+               maybe_source_url maybe_wiki_url
+               maybe_contents_url maybe_index_url
+               (BodyClasses ["has-module-prologue"]) (Just (ContentsTab ctsTab)) << [
+          h1 ! [theclass "module-name"] << mdl_str,
+          thediv ! [identifier "module-prologue"] << [
+            moduleInfo iface,
+            ppModuleContents real_qual exports (not . null $ ifaceRnOrphanInstances iface)
+          ],
+          genInterfaceDocs maybe_source_url maybe_wiki_url iface unicode real_qual
+        ]
 
   createDirectoryIfMissing True odir
   writeFile (joinPath [odir, moduleHtmlFile mdl]) (renderToString debug html)
-  ppHtmlModuleMiniSynopsis odir doctitle themes maybe_mathjax_url iface unicode real_qual debug
 
 ppHtmlModuleMiniSynopsis :: FilePath -> String -> Themes
   -> Maybe String -> Interface -> Bool -> Qualification -> Bool -> IO ()
@@ -572,16 +807,15 @@ processForMiniSynopsis _ _ _ _ = []
 
 ppNameMini :: Notation -> Module -> OccName -> Html
 ppNameMini notation mdl nm =
-    anchor ! [ href (moduleNameUrl mdl nm)
-             , target mainFrameName ]
-      << ppBinder' notation nm
+  thespan ! [theclass "main-name"]
+    << ppBinder' notation nm
 
 
 ppTyClBinderWithVarsMini :: Module -> TyClDecl DocName -> Html
 ppTyClBinderWithVarsMini mdl decl =
   let n = tcdName decl
       ns = tyvarNames $ tcdTyVars decl -- it's safe to use tcdTyVars, see code above
-  in ppTypeApp n [] ns (\is_infix -> ppNameMini is_infix mdl . nameOccName . getName) ppTyName
+  in ppTypeApp n [] ns (\is_infix -> ppNameMini is_infix mdl . nameOccName . getName) ppParamNameMini
 
 ppModuleContents :: Qualification
                  -> [ExportItem DocName]
@@ -591,9 +825,9 @@ ppModuleContents qual exports orphan
   | null sections && not orphan  = noHtml
   | otherwise                    = contentsDiv
  where
-  contentsDiv = divTableOfContents << (
-    sectionName << "Contents" +++
-    unordList (sections ++ orphanSection))
+  contentsDiv = thediv ! [identifier "table-of-contents"] << (
+      h3 << "Contents" +++
+      unordList sections)
 
   (sections, _leftovers{-should be []-}) = process 0 exports
   orphanSection
@@ -626,6 +860,56 @@ numberSectionHeadings = go 1
         go n (other:es)
           = other : go n es
 
+--------------------------------------------------------------------------------
+
+genInterfaceDocs
+    :: SourceURLs -> WikiURLs -> Interface -> Bool -> Qualification -> Html
+genInterfaceDocs maybeSourceUrl maybeWikiUrl iface unicode qual =
+  H.toHtml [
+    description,
+    synopsis,
+    H.thediv ! [H.identifier "interface"] << [
+      maybeDocHeader,
+      docBody
+    ]
+  ]
+  where
+    exports = numberSectionHeadings (ifaceRnExportItems iface)
+
+    description
+      | H.isNoHtml doc = doc
+      | otherwise =
+          H.thediv ! [H.identifier "description"] << [
+            H.h1 << "Description",
+            doc
+          ]
+      where
+        doc = docSection Nothing qual (ifaceRnDoc iface)
+
+    -- Omit the synopsis if there are no documentation annotations at all
+    synopsis
+      | shouldOmitSynopsis exports = H.noHtml
+      | otherwise =
+          H.thediv ! [H.identifier "synopsis"] << (
+            H.h1 ! collapseControl "syn" False "" << "Synopsis" +++
+            shortDeclList (
+              mapMaybe (processExport True linksInfo unicode qual) exports
+            ) ! (collapseSection "syn" False "" ++ collapseToggle "syn")
+          )
+
+    -- If the documentation doesn't begin with a section header, then add one
+    -- ("Documentation").
+    maybeDocHeader = case exports of
+        []                -> H.noHtml
+        ExportGroup{} : _ -> H.noHtml
+        _                 -> H.h1 << "Documentation"
+
+    docBody = H.toHtml processedExports
+
+    processedExports =
+      mapMaybe (processExport False linksInfo unicode qual) exports
+
+    linksInfo = (maybeSourceUrl, maybeWikiUrl)
 
 processExport :: Bool -> LinksInfo -> Bool -> Qualification
               -> ExportItem DocName -> Maybe Html
@@ -672,3 +956,122 @@ groupTag lev
   | lev == 2  = h2
   | lev == 3  = h3
   | otherwise = h4
+
+--------------------------------------------------------------------------------
+-- * Module contents tab
+--------------------------------------------------------------------------------
+
+genModuleContentsTab :: Module -> Interface -> Bool -> Qualification -> Html
+genModuleContentsTab mdl iface unicode qual =
+  H.thediv ! [H.theclass "contents module"] <<
+    H.ulist << (standardPages ++ members)
+  where
+    standardPages = [
+        standardPage "#description" "Description",
+        if not (shouldOmitSynopsis exports)
+          then standardPage "#synopsis" "Synopsis"
+          else H.noHtml
+      ]
+    standardPage href name =
+      H.li ! [H.theclass "std"] << H.h1 <<
+        H.anchor ! [H.theclass "mini-item", H.href href] << name
+    exports = numberSectionHeadings (ifaceRnExportItems iface)
+    members = processForModuleContentsTab mdl unicode qual exports
+
+--------------------------------------------------------------------------------
+
+processForModuleContentsTab
+    :: Module -> Bool -> Qualification -> [ExportItem DocName] -> [Html]
+processForModuleContentsTab mdl unicode qual items =
+  let (result, _) = process 0 items in result
+  where
+    process :: Int -> [ExportItem DocName] -> ([Html], [ExportItem DocName])
+    process _ [] = ([], [])
+    process level (item:remaining) = case item of
+      ExportDecl { expItemDecl = L _ itemDecl } ->
+        (fmap resultToHtml results ++ remainingMembers, remainingAfterThis)
+        where
+          (remainingMembers, remainingAfterThis) =
+             process level remaining
+          resultToHtml (html, url) =
+            H.li ! [H.theclass "top"] <<
+              H.anchor ! [H.theclass "mini-item top", H.href url] << html
+          results = processExportItem itemDecl
+      ExportGroup level' groupId title ->
+        if level' > level
+          then -- This is a child group.
+            let
+              hash = "#g:" ++ groupId
+              titleHtml = docToHtml Nothing qual (mkMeta title)
+              childLiClasses = unwords (
+                  ["group"] ++
+                  if not (null childMembers) then [] else ["no-items"]
+                )
+              childLi =
+                H.li ! [H.theclass childLiClasses] << [
+                  groupTag level <<
+                    H.anchor ! [H.theclass "mini-item", H.href hash] << titleHtml,
+                  H.ulist ! [H.theclass "members"] << childMembers
+                ]
+              (childMembers, remainingAfterChild) =
+                process level' remaining
+              (remainingMembers, remainingAfterThis) =
+                process level remainingAfterChild
+            in
+              (childLi:remainingMembers, remainingAfterThis)
+          else -- This is another group of the same/greater level.
+            ([], item:remaining)
+      _ -> process level remaining
+
+    processExportItem itemDecl = case itemDecl of
+      TyClD d ->
+        [(html, url)]
+        where
+          html = case d of
+            (FamDecl   decl) -> [ppTyFamHeader True False decl unicode qual]
+            (DataDecl  {})   -> [keyword "data" <+> b]
+            (SynDecl   {})   -> [keyword "type" <+> b]
+            (ClassDecl {})   -> [keyword "class" <+> b]
+          url = moduleNameUrl mdl (nameOccName (getName (tcdName d)))
+          b = ppTyClBinderWithVarsMini mdl d
+      SigD (TypeSig lnames _) ->
+        map process lnames
+        where
+          process lname = (html, url)
+            where
+              occName = nameOccName (getName (unLoc lname))
+              html    = [ppNameMini Prefix mdl occName]
+              url     = moduleNameUrl mdl occName
+      _ -> []
+
+--------------------------------------------------------------------------------
+
+
+ppParamNameMini :: Name -> Html
+ppParamNameMini nm = thespan ! [theclass "param"] << ppTyName nm
+
+
+--------------------------------------------------------------------------------
+-- * Utilities
+--------------------------------------------------------------------------------
+
+allSame :: Eq a => [a] -> Bool
+allSame [] = True
+allSame (x:xs) = all (== x) xs
+
+-- TODO: if something has only sub-docs, or fn-args-docs, should it be measured
+-- here and thus prevent omitting the synopsis?
+exportHasDoc :: ExportItem n -> Bool
+exportHasDoc ExportDecl {expItemMbDoc = (Documentation mDoc mWarning, _)} =
+  isJust mDoc || isJust mWarning
+exportHasDoc (ExportNoDecl _ _) = False
+exportHasDoc (ExportModule _) = False
+exportHasDoc _ = False
+
+noDocumentedExports :: [ExportItem n] -> Bool
+noDocumentedExports = not . any exportHasDoc
+
+shouldOmitSynopsis :: [ExportItem n] -> Bool
+shouldOmitSynopsis = noDocumentedExports
+
+--------------------------------------------------------------------------------
