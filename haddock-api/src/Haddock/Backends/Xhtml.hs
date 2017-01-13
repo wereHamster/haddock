@@ -130,7 +130,9 @@ headHtml docTitle miniPage themes mathjax_url =
     jsFile "jquery.min.js",
     jsFile "jquery.nanoscroller.min.js",
     jsFile "haddock.js",
-    jsCode "window.onload = function() { haddock._initPage(); }"
+    jsCode "window.onload = function() { haddock._initPage(); }",
+    jsFile "https://use.typekit.net/lly1jgo.js",
+    jsCode "try{Typekit.load({ async: true });}catch(e){}"
     ]
   where
     setSynopsis = maybe "" (\p -> "setSynopsis(\"" ++ p ++ "\");") miniPage
@@ -708,10 +710,10 @@ ppHtmlModule odir doctitle themes
                maybe_contents_url maybe_index_url
                (BodyClasses ["has-module-prologue"]) (Just (ContentsTab ctsTab)) << [
           h1 ! [theclass "module-name"] << mdl_str,
-          thediv ! [identifier "module-prologue"] << [
-            moduleInfo iface,
-            ppModuleContents real_qual exports (not . null $ ifaceRnOrphanInstances iface)
-          ],
+          -- thediv ! [identifier "module-prologue"] << [
+          --   moduleInfo iface,
+          --   ppModuleContents real_qual exports (not . null $ ifaceRnOrphanInstances iface)
+          -- ],
           genInterfaceDocs maybe_source_url maybe_wiki_url iface unicode real_qual
         ]
 
@@ -735,7 +737,7 @@ ifaceToHtml :: SourceURLs -> WikiURLs -> Interface -> Bool -> Qualification -> H
 ifaceToHtml maybe_source_url maybe_wiki_url iface unicode qual
   = ppModuleContents qual exports (not . null $ ifaceRnOrphanInstances iface) +++
     description +++
-    synopsis +++
+    -- synopsis +++
     divInterface (maybe_doc_hdr +++ bdy +++ orphans)
   where
     exports = numberSectionHeadings (ifaceRnExportItems iface)
@@ -750,7 +752,7 @@ ifaceToHtml maybe_source_url maybe_wiki_url iface unicode qual
     no_doc_at_all = not (any has_doc exports)
 
     description | isNoHtml doc = doc
-                | otherwise    = divDescription $ sectionName << "Description" +++ doc
+                | otherwise    = divDescription $ doc
                 where doc = docSection Nothing qual (ifaceRnDoc iface)
 
         -- omit the synopsis if there are no documentation annotations at all
@@ -867,7 +869,7 @@ genInterfaceDocs
 genInterfaceDocs maybeSourceUrl maybeWikiUrl iface unicode qual =
   H.toHtml [
     description,
-    synopsis,
+    -- synopsis,
     H.thediv ! [H.identifier "interface"] << [
       maybeDocHeader,
       docBody
@@ -878,11 +880,7 @@ genInterfaceDocs maybeSourceUrl maybeWikiUrl iface unicode qual =
 
     description
       | H.isNoHtml doc = doc
-      | otherwise =
-          H.thediv ! [H.identifier "description"] << [
-            H.h1 << "Description",
-            doc
-          ]
+      | otherwise = H.thediv ! [theclass "module-description"] << [doc]
       where
         doc = docSection Nothing qual (ifaceRnDoc iface)
 

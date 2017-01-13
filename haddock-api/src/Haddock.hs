@@ -242,7 +242,7 @@ render dflags flags qual ifaces installedIfaces extSrcMap = do
 
   let
     title                = fromMaybe "" (optTitle flags)
-    unicode              = Flag_UseUnicode `elem` flags
+    unicode              = True -- Flag_UseUnicode `elem` flags
     pretty               = Flag_PrettyHtml `elem` flags
     opt_wiki_urls        = wikiUrls          flags
     opt_contents_url     = optContentsUrl    flags

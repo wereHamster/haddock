@@ -260,15 +260,15 @@ declElem = paragraph ! [theclass "src"]
 topDeclElem :: LinksInfo -> SrcSpan -> Bool -> [DocName] -> Html -> Html
 topDeclElem lnks loc splice names html =
     declElem << (
-      (thespan ! [theclass "decl-body"] << html) <+>
-      (thespan ! [theclass "decl-links"] << links lnks loc splice (head names)))
+      (thespan ! [theclass "decl-links"] << links lnks loc splice (head names)) <+>
+      (thespan ! [theclass "decl-body"] << html))
       -- FIXME: is it ok to simply take the first name?
 
 -- | Adds a source and wiki link at the right hand side of the box.
 -- Name must be documented, otherwise we wouldn't get here.
 links :: LinksInfo -> SrcSpan -> Bool -> DocName -> Html
 links ((_,_,sourceMap,lineMap), (_,_,maybe_wiki_url)) loc splice docName@(Documented n mdl) =
-  srcLink <+> wikiLink <+> (selfLink ! [theclass "selflink"] << "#")
+  (selfLink ! [theclass "selflink"] << "#")
   where selfLink = linkedAnchor (nameAnchorId (nameOccName (getName docName)))
 
         srcLink = let nameUrl = Map.lookup origPkg sourceMap

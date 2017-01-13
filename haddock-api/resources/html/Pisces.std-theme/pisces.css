@@ -111,8 +111,9 @@ a[href].def:hover {
 /*----------------------------------------------------------------------------*/
 
 body, select, input, button, textarea {
-  font-family: 'Open Sans', 'Liberation Sans', sans-serif;
-  font-size: 15px;
+  font-family: "adelle", serif;
+  font-size: 16px;
+  font-weight: 300;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -130,6 +131,7 @@ table {
 
 pre, code, kbd, samp, tt, .src {
   font-family: 'Ubuntu Mono', 'Liberation Mono', monospace;
+  /*font-size: 14px;*/
   line-height: 120%;
 }
 
@@ -149,12 +151,12 @@ pre, code, kbd, samp, tt, .src {
 /* Header fonts                                                               */
 /*----------------------------------------------------------------------------*/
 
-h1, h2, h3, h4, h5, h6 { color: #7a63b1; }
+h1, h2, h3, h4, h5, h6 { color: #180c35; font-weight: normal; }
 
 h1 { font-size: 20px; }
 h2 { font-size: 20px; }
 h3 { font-size: 18px; }
-h4 { font-size: 15px; }
+h4 { font-size: 16px; }
 h5 { font-size: 15px; font-style: italic; }
 h6 { font-size: 13px; }
 
@@ -190,6 +192,23 @@ h1 + h2, h2 + h3, h3 + h4, h4 + h5, h5 + h6 {
 
 .has-javascript .collapser:before {
   content: "";
+}
+
+.subs.instances {
+  /*margin-left: 1.1em;*/
+}
+
+.subs.instances > div {
+  margin-left: 1.1em;
+}
+table {
+  border-collapse: collapse;
+}
+.subs.instances > h4 {
+  margin-bottom: .5em;
+}
+.subs.instances > h4:before {
+  display: none;
 }
 
 .has-javascript .collapser.collapsed:before {
@@ -235,8 +254,9 @@ h1.collapser:before {
 /*----------------------------------------------------------------------------*/
 
 .doc p, .doc li {
-  text-align: justify;
+  /*text-align: justify;*/
   hyphens: auto;
+  max-width: 700px;
 }
 
 /*----------------------------------------------------------------------------*/
@@ -418,6 +438,10 @@ pre.screen code.input:before {
 }
 
 /*----------------------------------------------------------------------------*/
+
+.module-description {
+  max-width: 740px;
+}
 
 #description > .doc.empty {
   display: none;
@@ -617,6 +641,7 @@ ul.dropdown-menu > li > a[href]:focus {
 
 #interface .top > p.src {
   display: flex;
+  font-size: 16px;
   /*padding: 0.5em 1.5em;*/
 }
 
@@ -632,6 +657,8 @@ ul.dropdown-menu > li > a[href]:focus {
   /*margin-left: 1.5em;*/
   /*margin-right: 1.5em;*/
   margin-bottom: 1em;
+  margin-top: 0.3em;
+  /*font-size: 14px;*/
 }
 
 #interface .top > .doc p {
@@ -652,6 +679,7 @@ ul.dropdown-menu > li > a[href]:focus {
   display: block;
   flex-shrink: 0;
   margin-right: .5em;
+  margin-left: -1.2em;
 }
 
 #interface p.src .link,
@@ -704,9 +732,9 @@ ul.dropdown-menu > li > a[href]:focus {
 #interface .subs > ul > li > dfn {
   display: block;
   font-style: normal;
-  font-weight: bold;
+  /*font-weight: bold;*/
   padding-left: 2em;
-  padding-bottom: 0.2em;
+  padding-bottom: 0.1em;
 }
 
 #interface .subs > ul > li > .subs,
@@ -718,6 +746,8 @@ ul.dropdown-menu > li > a[href]:focus {
   margin-right: 1.5em;
   /*margin-top: 0.5em;*/
   margin-bottom: 0.75em;
+  margin-left: 2.3em;
+  font-size: 14px;
 }
 
 #interface .subs > ul > li > .doc.empty {
@@ -776,7 +806,7 @@ ul.dropdown-menu > li > a[href]:focus {
 #interface .inst-body .collapser:before {
   width: auto;
   position: static;
-  padding-right: 0.25em;
+  /*padding-right: 0.25em;*/
   font-size: 14px;
   color: #888;
 }
@@ -1525,7 +1555,7 @@ ul.dropdown-menu > li > a[href]:focus {
   #page-header {
     border: none;
     border-bottom: 1px solid #e0e0e0;
-    max-width: 740px;
+    /*max-width: 740px;*/
   }
 
   #footer {
