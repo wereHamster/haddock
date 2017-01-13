@@ -119,7 +119,11 @@ body, select, input, button, textarea {
 
 table {
   font-size: inherit;
-  font: 100%;
+  width: 100%;
+}
+
+.doc {
+  color: rgba(50, 0, 136, 0.8);
 }
 
 /*----------------------------------------------------------------------------*/
@@ -145,7 +149,7 @@ pre, code, kbd, samp, tt, .src {
 /* Header fonts                                                               */
 /*----------------------------------------------------------------------------*/
 
-h1, h2, h3, h4, h5, h6 { color: #6E618D; }
+h1, h2, h3, h4, h5, h6 { color: #7a63b1; }
 
 h1 { font-size: 20px; }
 h2 { font-size: 20px; }
@@ -160,14 +164,20 @@ h1.module-name { font-size: 25px; }
 /* Header margins                                                             */
 /*----------------------------------------------------------------------------*/
 
+.constructors > h4 {
+  margin-top: 0.5em;
+  font-weight: normal;
+  margin-bottom: 1em;
+}
+
 .caption, h1, h2, h3 {
   margin-top: 30px;
   margin-bottom: 15px;
 }
 
 h4, h5, h6 {
-  margin-top: 20px;
-  margin-bottom: 15px;
+  /*margin-top: 20px;*/
+  /*margin-bottom: 15px;*/
 }
 
 h1 + h2, h2 + h3, h3 + h4, h4 + h5, h5 + h6 {
@@ -585,21 +595,29 @@ ul.dropdown-menu > li > a[href]:focus {
 /*----------------------------------------------------------------------------*/
 
 #interface .src {
-  background: #eaeaea;
-  padding: 0.25em 0.5em;
+  display: flex;
+  /*background: #eaeaea;*/
+  /*padding: 0.25em 0.5em;*/
+}
+
+.subs.minimal, .subs.associated-types, .subs.methods {
+  margin-left: 2em;
+}
+.subs.minimal h4, .subs.associated-types h4, .subs.methods h4 {
+  margin-bottom: 0.2em;
 }
 
 /*----------------------------------------------------------------------------*/
 
 #interface .top {
-  margin-top: 2em;
-  margin-bottom: 1em;
-  border-top: 1px solid #ccc;
+  margin-top: 3em;
+  margin-bottom: 1.5em;
+  /*border-top: 1px solid #ccc;*/
 }
 
 #interface .top > p.src {
   display: flex;
-  padding: 0.5em 1.5em;
+  /*padding: 0.5em 1.5em;*/
 }
 
 #interface h1 + .top,
@@ -611,10 +629,13 @@ ul.dropdown-menu > li > a[href]:focus {
 
 #interface .top > .subs,
 #interface .top > .doc {
-  margin-left: 1.5em;
-  margin-right: 1.5em;
-  margin-top: 1em;
+  /*margin-left: 1.5em;*/
+  /*margin-right: 1.5em;*/
   margin-bottom: 1em;
+}
+
+#interface .top > .doc p {
+  max-width: 740px;
 }
 
 #interface p.src .decl-body,
@@ -630,6 +651,7 @@ ul.dropdown-menu > li > a[href]:focus {
 #interface td.src .inst-links {
   display: block;
   flex-shrink: 0;
+  margin-right: .5em;
 }
 
 #interface p.src .link,
@@ -667,7 +689,7 @@ ul.dropdown-menu > li > a[href]:focus {
 }
 
 #interface .subs > ul > li {
-  margin-bottom: 15px;
+  /*margin-bottom: 15px;*/
 }
 
 #interface .subs > ul > li:last-child {
@@ -683,7 +705,8 @@ ul.dropdown-menu > li > a[href]:focus {
   display: block;
   font-style: normal;
   font-weight: bold;
-  padding: 0.35em 1em;
+  padding-left: 2em;
+  padding-bottom: 0.2em;
 }
 
 #interface .subs > ul > li > .subs,
@@ -693,7 +716,7 @@ ul.dropdown-menu > li > a[href]:focus {
 
 #interface .subs > ul > li > .doc {
   margin-right: 1.5em;
-  margin-top: 0.5em;
+  /*margin-top: 0.5em;*/
   margin-bottom: 0.75em;
 }
 
@@ -782,8 +805,12 @@ ul.dropdown-menu > li > a[href]:focus {
   display: flex;
 }
 
+.subs.methods {
+  margin-bottom: 1em;
+}
+
 #interface .inst-details {
-  padding-left: 1em;
+  padding-left: 3em;
   padding-right: 1em;
 }
 
@@ -1391,7 +1418,7 @@ ul.dropdown-menu > li > a[href]:focus {
 
 @media all and (min-width: 800px) {
   #content {
-    max-width: 740px;
+    /*max-width: 740px;*/
     padding-top: 40px;
     margin-left: auto;
     margin-right: auto;
@@ -1481,7 +1508,7 @@ ul.dropdown-menu > li > a[href]:focus {
   }
 
   #page:before {
-    content: "";
+    /*content: "";*/
     background: #f0f0f0;
     position: absolute;
     left: 810px;
@@ -1503,12 +1530,16 @@ ul.dropdown-menu > li > a[href]:focus {
 
   #footer {
     border-top: 1px solid #e0e0e0;
-    max-width: 810px;
+    /*max-width: 810px;*/
+    color: rgb(178, 162, 199);
+    font-size: 13px;
+  }
+  #footer a[href]:link {
+    color: #95b1ca;
   }
 
   #page-header, #footer {
     background: transparent;
-    color: #777;
   }
 
   #page-header > h1 {
