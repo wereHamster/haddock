@@ -184,9 +184,12 @@ haddockWithGhc ghc args = handleTopExceptions $ do
 
       -- Get packages supplied with --read-interface.
       packages <- liftIO $ readInterfaceFiles freshNameCache (readIfaceArgs flags)
+      let ifaceFiles = map snd packages
+      (ifaces, homeLinks) <- processModules (verbosity flags) files flags ifaceFiles
 
       -- Render even though there are no input files (usually contents/index).
-      liftIO $ renderStep dflags flags qual packages []
+      -- liftIO $ renderStep dflags flags qual packages ifaces
+      pure ()
 
 -- | Create warnings about potential misuse of -optghc
 warnings :: [String] -> [String]
