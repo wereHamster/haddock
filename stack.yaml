@@ -1,4 +1,4 @@
-resolver: lts-7.14
+resolver: nightly-2017-01-14
 packages:
   - '.'
   - haddock-api

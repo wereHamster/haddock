@@ -734,12 +734,14 @@ ppDataDecl summary links instances fixities subdocs loc doc dataDecl
       | null cons = noHtml
       | otherwise = if isH98 then noHtml else keyword "where"
 
-    constrBit = subConstructors qual
-      [ ppSideBySideConstr subdocs subfixs unicode qual c
-      | c <- cons
-      , let subfixs = filter (\(n,_) -> any (\cn -> cn == n)
-                                     (map unLoc (getConNames (unLoc c)))) fixities
-      ]
+    constrBit = case cons of
+      [_] -> noHtml
+      _ -> subConstructors qual
+        [ ppSideBySideConstr subdocs subfixs unicode qual c
+        | c <- cons
+        , let subfixs = filter (\(n,_) -> any (\cn -> cn == n)
+                                      (map unLoc (getConNames (unLoc c)))) fixities
+        ]
 
     instancesBit = ppInstances links (OriginData docname) instances
         splice unicode qual
@@ -902,6 +904,54 @@ ppDataHeader summary decl@(DataDecl { tcdDataDefn =
     <+> case ks of
       Nothing -> mempty
       Just (L _ x) -> dcolon unicode <+> ppKind unicode qual x
+    <+> case cons of
+      [con] -> toHtml " = " <+> singleCon con
+      _ -> noHtml
+  where
+    cons = dd_cons (tcdDataDefn decl)
+    singleCon (L _ con) = case con of
+      ConDeclH98{} -> case con_details con of
+        PrefixCon args ->
+          hsep ((header_ +++ ppOcc) : map (ppLParendType unicode qual) args)
+        RecCon _ -> header_ +++ ppOcc +++ fieldPart
+
+        InfixCon arg1 arg2 ->
+          hsep [header_ +++ ppLParendType unicode qual arg1,
+            ppOccInfix,
+            ppLParendType unicode qual arg2]
+
+      ConDeclGADT{} -> doGADTCon resTy
+     where
+      resTy = hsib_body (con_type con)
+
+      fieldPart = case getConDetails con of
+          RecCon (L _ [field]) -> toHtml [
+            toHtml " { ",
+            case ppSideBySideField [] unicode qual (unLoc field) of (h, _, _) -> h,
+            toHtml " }"
+            ]
+          _ -> noHtml
+
+      doRecordFields fields = subFields qual
+        (map (ppSideBySideField [] unicode qual) (map unLoc fields))
+
+      doGADTCon :: Located (HsType DocName) -> Html
+      doGADTCon ty = ppOcc <+> dcolon unicode <+> ppLType unicode qual ty
+
+      header_ = ppConstrHdr forall_ tyVars context unicode qual
+      occ       = map (nameOccName . getName . unLoc) $ getConNames con
+
+      ppOcc     = case occ of
+        [one] -> ppBinder False one
+        _     -> hsep (punctuate comma (map (ppBinder False) occ))
+
+      ppOccInfix = case occ of
+        [one] -> ppBinderInfix False one
+        _     -> hsep (punctuate comma (map (ppBinderInfix False) occ))
+
+      tyVars  = tyvarNames (fromMaybe (HsQTvs PlaceHolder [] PlaceHolder) (con_qvars con))
+      context = unLoc (fromMaybe (noLoc []) (con_cxt con))
+      forall_ = False
 
 ppDataHeader _ _ _ _ = error "ppDataHeader: illegal argument"
 
