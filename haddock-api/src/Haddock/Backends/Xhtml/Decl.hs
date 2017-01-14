@@ -29,7 +29,7 @@ import Haddock.GhcUtils
 import Haddock.Types
 import Haddock.Doc (combineDocumentation)
 
-import           Data.List             ( intersperse, sort )
+import           Data.List             ( nub, intersperse, sort )
 import qualified Data.Map as Map
 import           Data.Maybe
 import           Text.XHtml hiding     ( name, title, p, quote )
@@ -568,13 +568,18 @@ ppInstances :: LinksInfo
             -> Splice -> Unicode -> Qualification
             -> Html
 ppInstances links origin instances splice unicode qual
-  = subInstances qual instName links True (zipWith instDecl [1..] instances)
+  = subInstances qual instName links True iat (zipWith instDecl [1..] instances)
   -- force Splice = True to use line URLs
   where
     instName = getOccString origin
     instDecl :: Int -> DocInstance DocName -> (SubDecl,Located DocName)
     instDecl no (inst, mdoc, loc) =
         ((ppInstHead links splice unicode qual mdoc origin False no inst), loc)
+
+    iat = map toIat $ nub $ map toIhClsName instances
+    toIhClsName ((InstHead {..}), mdoc, loc) = ihdClsName
+    toIat ihdClsName = (\p -> ppDocName qual p True) Prefix ihdClsName
+      -- ppAppNameTypes ihdClsName ihdKinds ihdTypes unicode qual
 
 
 ppOrphanInstances :: LinksInfo

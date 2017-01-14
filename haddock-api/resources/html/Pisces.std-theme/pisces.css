@@ -147,6 +147,18 @@ pre, code, kbd, samp, tt, .src {
   font-size: 13px;
 }
 
+.see-details {
+    display: inline-block;
+    font-size: 13px;
+    margin-left: 1em;
+    color: rgba(24, 12, 53, 0.55);
+    transition: color .12s;
+}
+.see-details:hover {
+    text-decoration: underline;
+    color: #180c35;
+}
+
 /*----------------------------------------------------------------------------*/
 /* Header fonts                                                               */
 /*----------------------------------------------------------------------------*/
@@ -854,7 +866,15 @@ ul.dropdown-menu > li > a[href]:focus {
 /*----------------------------------------------------------------------------*/
 
 .warning {
-  color: red;
+    color: #245880;
+    padding: .6em 1em;
+    background-color: rgba(232, 171, 152, 0.29);
+    border-left: 4px solid rgb(232, 171, 152);
+}
+
+.deprecated {
+  font-weight: 600;
+  color: #164467;
 }
 
 /*----------------------------------------------------------------------------*/

@@ -51,6 +51,8 @@ import Text.XHtml hiding ( name, title, p, quote )
 import FastString            ( unpackFS )
 import GHC
 import Name (nameOccName)
+import Data.Maybe
+import Data.List
 
 --------------------------------------------------------------------------------
 -- * Sections of the document
@@ -192,13 +194,20 @@ subEquations qual = divSubDecls "equations" "Equations" . subTable qual
 subInstances :: Qualification
              -> String -- ^ Class name, used for anchor generation
              -> LinksInfo -> Bool
+             -> [Html]
              -> [(SubDecl,Located DocName)] -> Html
-subInstances qual nm lnks splice = maybe noHtml wrap . instTable
+subInstances qual nm lnks splice instances = maybe noHtml wrap . instTable
   where
     wrap = (subSection <<) . (subCaption +++)
-    instTable = fmap (thediv ! collapseSection id_ True [] <<) . subTableSrc qual lnks splice
+    instTable = fmap (thediv ! collapseSection id_ False [] <<) . subTableSrc qual lnks splice
     subSection = thediv ! [theclass "subs instances"]
-    subCaption = h4 ! collapseControl id_ True "caption" << "Instances"
+    subCaption = (h4 ! collapseControl id_ False "caption") << toHtml [
+      toHtml "Instances",
+      toHtml " (",
+      toHtml (intersperse (thespan << ", ") instances),
+      toHtml ")",
+      thediv ! [theclass "see-details"] << "see details"
+      ]
     id_ = makeAnchorId $ "i:" ++ nm
 
 
