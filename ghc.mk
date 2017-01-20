@@ -41,14 +41,21 @@ utils/haddock_dist_DATA_FILES += html/Classic.theme/haskell_icon.gif
 utils/haddock_dist_DATA_FILES += html/Classic.theme/minus.gif
 utils/haddock_dist_DATA_FILES += html/Classic.theme/plus.gif
 utils/haddock_dist_DATA_FILES += html/Classic.theme/xhaddock.css
-utils/haddock_dist_DATA_FILES += html/Ocean.std-theme/hslogo-16.png
-utils/haddock_dist_DATA_FILES += html/Ocean.std-theme/minus.gif
-utils/haddock_dist_DATA_FILES += html/Ocean.std-theme/ocean.css
-utils/haddock_dist_DATA_FILES += html/Ocean.std-theme/plus.gif
-utils/haddock_dist_DATA_FILES += html/Ocean.std-theme/synopsis.png
+utils/haddock_dist_DATA_FILES += html/Ocean.theme/hslogo-16.png
+utils/haddock_dist_DATA_FILES += html/Ocean.theme/minus.gif
+utils/haddock_dist_DATA_FILES += html/Ocean.theme/ocean.css
+utils/haddock_dist_DATA_FILES += html/Ocean.theme/plus.gif
+utils/haddock_dist_DATA_FILES += html/Ocean.theme/synopsis.png
 utils/haddock_dist_DATA_FILES += html/solarized.css
 utils/haddock_dist_DATA_FILES += html/highlight.js
 utils/haddock_dist_DATA_FILES += latex/haddock.sty
+utils/haddock_dist_DATA_FILES += html/Pisces.std-theme/FontAwesome.ttf
+utils/haddock_dist_DATA_FILES += html/Pisces.std-theme/Haskell.ttf
+utils/haddock_dist_DATA_FILES += html/Pisces.std-theme/OpenSans-Bold.ttf
+utils/haddock_dist_DATA_FILES += html/Pisces.std-theme/OpenSans-BoldItalic.ttf
+utils/haddock_dist_DATA_FILES += html/Pisces.std-theme/OpenSans-Italic.ttf
+utils/haddock_dist_DATA_FILES += html/Pisces.std-theme/OpenSans-Regular.ttf
+utils/haddock_dist_DATA_FILES += html/Pisces.std-theme/pisces.css
 
 ifeq "$(HADDOCK_DOCS)" "YES"
 install: install_utils/haddock_data
